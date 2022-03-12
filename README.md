@@ -1,3 +1,15 @@
+# BEAST MODE PYTHON SDK
+
+## REMOVE LOTS OF HEAVY PERFORMANCE IMPACT CODE.
+
+## DO NOT USE THIS SDK IF YOU DONT KNOW WHAT YOU ARE DOING, THERE IS NO WARRANTY FOR THIS PERFORMANCE PATCH.
+## DO NOT USE THIS SDK IF YOU DONT KNOW WHAT YOU ARE DOING, THERE IS NO WARRANTY FOR THIS PERFORMANCE PATCH.
+## DO NOT USE THIS SDK IF YOU DONT KNOW WHAT YOU ARE DOING, THERE IS NO WARRANTY FOR THIS PERFORMANCE PATCH.
+
+
+
+---------------------------------------------
+
 ![logo](https://opensource.sensorsdata.cn/wp-content/uploads/logo.png)
 <br><br>
 [![License](https://img.shields.io/github/license/sensorsdata/sa-sdk-cpp.svg)](https://github.com/sensorsdata/sa-sdk-c/blob/master/LICENSE)

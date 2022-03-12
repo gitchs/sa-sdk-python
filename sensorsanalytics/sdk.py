@@ -8,11 +8,8 @@ import json
 import logging
 import logging.handlers
 import os
-import re
-import sys
 import threading
 import time
-import traceback
 
 try:
     from urllib.parse import urlparse
@@ -27,21 +24,6 @@ except ImportError:
 
 SDK_VERSION = '1.10.3'
 batch_consumer_lock = threading.RLock()
-
-try:
-    isinstance("", basestring)
-    def is_str(s):
-        return isinstance(s, basestring)
-except NameError:
-    def is_str(s):
-        return isinstance(s, str)
-try:
-    isinstance(1, long)
-    def is_int(n):
-        return isinstance(n, int) or isinstance(n, long)
-except NameError:
-    def is_int(n):
-        return isinstance(n, int)
 
 
 class SensorsAnalyticsException(Exception):
@@ -82,34 +64,31 @@ if os.name == 'nt':  # pragma: no cover
     def lock(file_):
         try:
             savepos = file_.tell()
-           
             file_.seek(0)
-
             try:
                 msvcrt.locking(file_.fileno(), msvcrt.LK_LOCK, 1)
             except IOError as e:
-                raise SensorsAnalyticsFileLockException(e) 
+                raise SensorsAnalyticsFileLockException(e)
             finally:
                 if savepos:
                     file_.seek(savepos)
         except IOError as e:
-            raise SensorsAnalyticsFileLockException(e) 
+            raise SensorsAnalyticsFileLockException(e)
 
     def unlock(file_):
         try:
             savepos = file_.tell()
             if savepos:
                 file_.seek(0)
-            
             try:
                 msvcrt.locking(file_.fileno(), msvcrt.LK_UNLCK, 1)
             except IOError as e:
-                raise SensorsAnalyticsFileLockException(e) 
+                raise SensorsAnalyticsFileLockException(e)
             finally:
                 if savepos:
                     file_.seek(savepos)
         except IOError as e:
-            raise SensorsAnalyticsFileLockException(e) 
+            raise SensorsAnalyticsFileLockException(e)
 
 elif os.name == 'posix':  # pragma: no cover
     import fcntl
@@ -118,17 +97,15 @@ elif os.name == 'posix':  # pragma: no cover
         try:
             fcntl.flock(file_.fileno(), fcntl.LOCK_EX)
         except IOError as e:
-            raise SensorsAnalyticsFileLockException(e) 
+            raise SensorsAnalyticsFileLockException(e)
 
     def unlock(file_):
         fcntl.flock(file_.fileno(), fcntl.LOCK_UN)
-
 else:
-    raise SensorsAnalyticsFileLockException("SensorsAnalytics SDK is defined for NT and POSIX system.") 
+    raise SensorsAnalyticsFileLockException("SensorsAnalytics SDK is defined for NT and POSIX system.")
 
 
 class SAFileLock(object):
-    
     def __init__(self, file_handler):
         self._file_handler = file_handler
 
@@ -139,13 +116,11 @@ class SAFileLock(object):
     def __exit__(self, t, v, tb):
         unlock(self._file_handler)
 
+
 class SensorsAnalytics(object):
     """
     使用一个 SensorsAnalytics 的实例来进行数据发送。
     """
-
-    NAME_PATTERN = re.compile(r"^((?!^distinct_id$|^original_id$|^time$|^properties$|^id$|^first_id$|^second_id$|^users$|^events$|^event$|^user_id$|^date$|^datetime$)[a-zA-Z_$][a-zA-Z\d_$]{0,99})$", re.I)
-
     class DatetimeSerializer(json.JSONEncoder):
         """
         实现 date 和 datetime 类型的 JSON 序列化，以符合 SensorsAnalytics 的要求。
@@ -155,8 +130,8 @@ class SensorsAnalytics(object):
             if isinstance(obj, datetime.datetime):
                 head_fmt = "%Y-%m-%d %H:%M:%S"
                 return "{main_part}.{ms_part}".format(
-                        main_part=obj.strftime(head_fmt),
-                        ms_part=int(obj.microsecond/1000))
+                    main_part=obj.strftime(head_fmt),
+                    ms_part=int(obj.microsecond / 1000))
             elif isinstance(obj, datetime.date):
                 fmt = '%Y-%m-%d'
                 return obj.strftime(fmt)
@@ -180,7 +155,7 @@ class SensorsAnalytics(object):
         self._default_project_name = project_name
         self._enable_time_free = enable_time_free
         self._super_properties = {}
-        self.clear_super_properties();
+        self.clear_super_properties()
 
     @staticmethod
     def _now():
@@ -190,7 +165,7 @@ class SensorsAnalytics(object):
     def _json_dumps(data):
         return json.dumps(data, separators=(',', ':'), cls=SensorsAnalytics.DatetimeSerializer)
 
-    def register_super_properties(self, super_properties): 
+    def register_super_properties(self, super_properties):
         """
         设置每个事件都带有的一些公共属性，当 track 的 properties 和 super properties 有相同的 key 时，将采用 track 的
 
@@ -215,11 +190,11 @@ class SensorsAnalytics(object):
         :param event_name: 事件名称
         :param properties: 事件的属性
         """
-        all_properties = self._super_properties.copy() 
+        all_properties = self._super_properties.copy()
         if properties:
             all_properties.update(properties)
         self._track_event('track', event_name, distinct_id, None, all_properties, is_login_id)
- 
+
     def track_signup(self, distinct_id, original_id, properties=None):
         """
         这个接口是一个较为复杂的功能，请在使用前先阅读相关说明:http://www.sensorsdata.cn/manual/track_signup.html，
@@ -234,109 +209,35 @@ class SensorsAnalytics(object):
             raise SensorsAnalyticsIllegalDataException("property [original_id] must not be empty")
         if len(str(original_id)) > 255:
             raise SensorsAnalyticsIllegalDataException("the max length of property [original_id] is 255")
-       
+
         all_properties = self._super_properties.copy() 
         if properties:
             all_properties.update(properties)
-        
+
         self._track_event('track_signup', '$SignUp', distinct_id, original_id, all_properties, False)
 
     @staticmethod
     def _normalize_properties(data):
-        if "properties" in data and data["properties"] is not None:
-            for key, value in data["properties"].items():
-                if not is_str(key):
-                    raise SensorsAnalyticsIllegalDataException("property key must be a str. [key=%s]" % str(key))
-                if len(key) > 255:
-                    raise SensorsAnalyticsIllegalDataException("the max length of property key is 256. [key=%s]" % str(key))
-                if not SensorsAnalytics.NAME_PATTERN.match(key):
-                    raise SensorsAnalyticsIllegalDataException(
-                        "property key must be a valid variable name. [key=%s]" % str(key))
-
-                if is_str(value) and len(value) > 8191:
-                    raise SensorsAnalyticsIllegalDataException("the max length of property key is 8192. [key=%s]" % str(key))
-
-                if not is_str(value) and not is_int(value) and not isinstance(value, float)\
-                        and not isinstance(value, datetime.datetime) and not isinstance(value, datetime.date)\
-                        and not isinstance(value, list) and value is not None:
-                    raise SensorsAnalyticsIllegalDataException(
-                        "property value must be a str/int/float/datetime/date/list. [value=%s]" % type(value))
-                if isinstance(value, list):
-                    for lvalue in value:
-                        if not is_str(lvalue):
-                            raise SensorsAnalyticsIllegalDataException(
-                                "[list] property's value must be a str. [value=%s]" % type(lvalue))
+        return
 
     @staticmethod
     def _normalize_data(data):
-        # 检查 distinct_id
-        if data["distinct_id"] is None or len(str(data['distinct_id'])) == 0:
-            raise SensorsAnalyticsIllegalDataException("property [distinct_id] must not be empty")
-        if len(str(data['distinct_id'])) > 255:
-            raise SensorsAnalyticsIllegalDataException("the max length of property [distinct_id] is 255")
-        data['distinct_id'] = str(data['distinct_id'])
-
         # 检查 time
         if isinstance(data['time'], datetime.datetime):
-            data['time'] = time.mktime(data['time'].timetuple()) * 1000 + data['time'].microsecond / 1000
-
-        ts = int(data['time'])
-        ts_num = len(str(ts))
-        if ts_num < 10 or ts_num > 13:
-                raise SensorsAnalyticsIllegalDataException("property [time] must be a timestamp in microseconds")
-
-        if ts_num == 10:
-            ts *= 1000
-        data['time'] = ts
-
-        # 检查 Event Name
-        if 'event' in data and not SensorsAnalytics.NAME_PATTERN.match(data['event']):
-            raise SensorsAnalyticsIllegalDataException("event name must be a valid variable name. [name=%s]" % data['event'])
-
-        # 检查 Event Name
-        if 'project' in data and not SensorsAnalytics.NAME_PATTERN.match(data['project']):
-            raise SensorsAnalyticsIllegalDataException("project name must be a valid variable name. [project=%s]" % data['project'])
-
+            data['time'] = int(data['time'].timestamp() * 1000)
         # 检查 properties
         SensorsAnalytics._normalize_properties(data)
         return data
 
     def _get_lib_properties(self):
         lib_properties = {
-            '$lib' : 'python',
-            '$lib_version' : SDK_VERSION,
-            '$lib_method' : 'code',
+            '$lib': 'python',
+            '$lib_version': SDK_VERSION,
+            '$lib_method': 'code',
         }
 
-        if '$app_version' in self._super_properties: 
+        if '$app_version' in self._super_properties:
             lib_properties['$app_version'] = self._super_properties['$app_version']
-
-        try:
-            raise Exception
-        except:
-            trace = traceback.extract_stack(limit=5)
-            if len(trace) > 3:
-                try:
-                    file_name = trace[-4][0]
-                    line_number = trace[-4][1]
-                    
-                    if trace[-4][2].startswith('<'):
-                        function_name = ''
-                    else:
-                        function_name = trace[-4][2]
-                   
-                    try:
-                        if len(trace) > 4 and trace[-5][3]:
-                            class_name = trace[-5][3].split('(')[0] 
-                        else:
-                            class_name = ''
-                    except:
-                        print(trace.format()) 
-
-                    lib_properties['$lib_detail'] = '%s##%s##%s##%s' % (class_name, function_name, file_name, line_number) 
-                except:
-                    pass
-
         return lib_properties
 
     def _get_common_properties(self):
@@ -347,12 +248,9 @@ class SensorsAnalytics(object):
             '$lib': 'python',
             '$lib_version': SDK_VERSION,
         }
-
         if self._app_version:
             common_properties['$app_version'] = self._app_version
-
         return common_properties
-
 
     @staticmethod
     def _extract_user_time(properties):
@@ -464,11 +362,6 @@ class SensorsAnalytics(object):
 
     @staticmethod
     def _normalize_item_data(data):
-        # 检查 item_type
-        if not SensorsAnalytics.NAME_PATTERN.match(data['item_type']):
-            raise SensorsAnalyticsIllegalDataException(
-                "item_type must be a valid variable name. [key=%s]" % str(data['item_type']))
-
         # 检查 item_id
         if data['item_id'] is None or len(str(data['item_id'])) == 0:
             raise SensorsAnalyticsIllegalDataException("item_id must not be empty")
@@ -502,10 +395,8 @@ class SensorsAnalytics(object):
         self._json_dumps(data)
         self._consumer.send(self._json_dumps(data))
 
-
     def _track_event(self, event_type, event_name, distinct_id, original_id, properties, is_login_id):
         event_time = self._extract_user_time(properties) or self._now()
-        event_token = self._extract_token(properties)
         event_project = self._extract_project(properties)
 
         data = {
@@ -530,9 +421,6 @@ class SensorsAnalytics(object):
         if is_login_id:
             properties["$is_login_id"] = True
 
-        if event_token is not None:
-            data["token"] = event_token
-
         if event_project is not None:
             data["project"] = event_project
 
@@ -551,6 +439,7 @@ class SensorsAnalytics(object):
         如果发生意外，此方法将抛出异常。
         """
         self._consumer.close()
+
 
 class DefaultConsumer(object):
     """
@@ -874,6 +763,23 @@ class ConsoleConsumer(object):
         pass
 
 
+class SimpleFileConsumer:
+    def __init__(self, filename):
+        self.filename = filename
+        self.fd = open(filename, 'w', encoding='utf8')
+
+    def send(self, msg: str):
+        if not msg.endswith('\n'):
+            msg += '\n'
+        self.fd.write(msg)
+
+    def flush(self):
+        self.fd.flush()
+
+    def close(self):
+        self.fd.close()
+
+
 class LoggingConsumer(object):
     """
     将数据使用 logging 库输出到指定路径，并默认按天切割
@@ -896,6 +802,7 @@ class LoggingConsumer(object):
     def close(self):
         self.logger.handlers[0].close()
 
+
 class ConcurrentLoggingConsumer(object):
     """
     将数据输出到指定路径，并按天切割，支持多进程并行输出到同一个文件名
@@ -911,7 +818,7 @@ class ConcurrentLoggingConsumer(object):
             self._file.close()
 
         def isValid(self, filename):
-            return self._filename == filename 
+            return self._filename == filename
 
         def write(self, messages):
             with SAFileLock(self._file):
